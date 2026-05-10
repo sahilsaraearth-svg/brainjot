@@ -14,13 +14,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Install frontend deps
-        run: bun install
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -29,6 +26,9 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: Install frontend deps
+        run: bun install
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -39,10 +39,17 @@ jobs:
           releaseName: 'BrainJot ${{ github.ref_name }}'
           releaseBody: |
             ## BrainJot ${{ github.ref_name }}
-            Smart note-taking app with AI summaries, voice notes, and team collaboration.
-
+            
+            A sleek dark-mode note-taking app with AI transcription support.
+            
             ### Download
-            - **Windows**: Download the `.msi` or `_x64-setup.exe` installer below
+            - **Windows**: Download the `.exe` installer or `.msi` below
+            
+            ### What's included
+            - Folders & note organization
+            - Text, Voice, and Image note types
+            - Fast local storage (no account needed)
+            - Custom dark UI with no native title bar
           releaseDraft: false
           prerelease: false
 
@@ -59,13 +66,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20'
 
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
-
-      - name: Install frontend deps
-        run: bun install
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -74,6 +78,9 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
+
+      - name: Install frontend deps
+        run: bun install
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -84,6 +91,48 @@ jobs:
           releaseName: 'BrainJot ${{ github.ref_name }}'
           releaseBody: |
             ## BrainJot ${{ github.ref_name }}
-            Smart note-taking app — Linux build.
+            
+            A sleek dark-mode note-taking app with AI transcription support.
           releaseDraft: false
           prerelease: false
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend deps
+        run: bun install
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'BrainJot ${{ github.ref_name }}'
+          releaseBody: |
+            ## BrainJot ${{ github.ref_name }}
+            
+            A sleek dark-mode note-taking app with AI transcription support.
+          releaseDraft: false
+          prerelease: false
+          args: --target universal-apple-darwin
