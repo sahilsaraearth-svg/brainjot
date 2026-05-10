@@ -1,183 +1,246 @@
 import { useState } from 'react';
 import {
-  Mic, FileText, BarChart2, Plus, Settings,
-  Users, Zap, ChevronRight, Search, Sparkles
+  FolderOpen, Plus, Mic, FileText, BarChart2, Inbox,
+  MoreHorizontal, Pencil, Trash2, Search, ChevronRight,
 } from 'lucide-react';
-import type { AppData, NoteType } from '../types';
-import { createFolder } from '../store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import type { AppData, Folder } from '../types';
+import { createFolder, renameFolder, deleteFolder } from '../store';
+
+export type FilterType = 'all' | 'voice' | 'text' | 'analytics' | string; // string for folder ids
 
 interface Props {
   data: AppData;
-  setData: (d: AppData) => void;
-  activeFilter: { type: 'all' | NoteType | 'folder'; value?: string };
-  onFilterChange: (f: { type: 'all' | NoteType | 'folder'; value?: string }) => void;
-  searchQuery: string;
-  onSearchChange: (q: string) => void;
-  onNewNote: (type: NoteType) => void;
+  filter: FilterType;
+  search: string;
+  onFilterChange: (f: FilterType) => void;
+  onSearchChange: (s: string) => void;
+  onDataChange: (d: AppData) => void;
 }
 
-export default function Sidebar({ data, setData, activeFilter, onFilterChange, searchQuery, onSearchChange, onNewNote: _onNewNote }: Props) {
-  const [addingFolder, setAddingFolder] = useState(false);
-  const [newFolderName, setNewFolderName] = useState('');
+const topFilters: { id: FilterType; label: string; Icon: React.ElementType }[] = [
+  { id: 'all', label: 'All Notes', Icon: Inbox },
+  { id: 'voice', label: 'Voice Notes', Icon: Mic },
+  { id: 'text', label: 'Text Notes', Icon: FileText },
+  { id: 'analytics', label: 'Analytics', Icon: BarChart2 },
+];
 
-  const folderCounts: Record<string, number> = {};
-  for (const n of data.notes) {
-    if (n.folderId) folderCounts[n.folderId] = (folderCounts[n.folderId] || 0) + 1;
+export default function Sidebar({ data, filter, search, onFilterChange, onSearchChange, onDataChange }: Props) {
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Folder | null>(null);
+  const [renameName, setRenameName] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Folder | null>(null);
+  const [foldersExpanded, setFoldersExpanded] = useState(true);
+
+  function handleCreateFolder() {
+    const name = newFolderName.trim();
+    if (!name) return;
+    const { data: newData } = createFolder(data, name);
+    onDataChange(newData);
+    setNewFolderName('');
+    setNewFolderOpen(false);
   }
 
-  const handleAddFolder = () => {
-    if (!newFolderName.trim()) return;
-    const f = createFolder(data, newFolderName.trim());
-    setData({ ...data, folders: [...data.folders, f] });
-    setNewFolderName('');
-    setAddingFolder(false);
-  };
+  function handleRename() {
+    if (!renameTarget) return;
+    const name = renameName.trim();
+    if (!name) return;
+    onDataChange(renameFolder(data, renameTarget.id, name));
+    setRenameOpen(false);
+    setRenameTarget(null);
+  }
 
-  const navItem = (
-    icon: React.ReactNode,
-    label: string,
-    count: number | null,
-    filter: { type: 'all' | NoteType | 'folder'; value?: string }
-  ) => {
-    const isActive = activeFilter.type === filter.type && activeFilter.value === filter.value;
-    return (
-      <button
-        key={label}
-        onClick={() => onFilterChange(filter)}
-        className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all group ${
-          isActive
-            ? 'bg-indigo-600/20 text-indigo-300'
-            : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
-        }`}
-      >
-        <span className={isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}>{icon}</span>
-        <span className="flex-1 text-left font-medium">{label}</span>
-        {count !== null && (
-          <span className={`text-xs px-1.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-500/30 text-indigo-300' : 'bg-white/10 text-slate-400'}`}>
-            {count}
-          </span>
-        )}
-      </button>
-    );
-  };
+  function handleDelete() {
+    if (!deleteTarget) return;
+    const newData = deleteFolder(data, deleteTarget.id);
+    onDataChange(newData);
+    if (filter === deleteTarget.id) onFilterChange('all');
+    setDeleteTarget(null);
+  }
+
+  function openRename(folder: Folder) {
+    setRenameTarget(folder);
+    setRenameName(folder.name);
+    setRenameOpen(true);
+  }
+
+  const folderNoteCount = (folderId: string) =>
+    data.notes.filter(n => n.folderId === folderId).length;
 
   return (
-    <div className="w-[220px] flex-shrink-0 bg-[#111827] flex flex-col h-full border-r border-white/5">
+    <div className="flex flex-col h-full w-[220px] bg-sidebar border-r border-border shrink-0">
       {/* Search */}
-      <div className="px-3 py-3">
-        <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2 border border-white/5">
-          <Search size={13} className="text-slate-500 flex-shrink-0" />
-          <input
-            type="text"
-            placeholder="Search notes..."
-            value={searchQuery}
+      <div className="px-3 py-2">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Search notes…"
+            value={search}
             onChange={e => onSearchChange(e.target.value)}
-            className="bg-transparent text-sm text-slate-200 placeholder-slate-500 outline-none w-full"
+            className="pl-8 h-8 text-sm bg-muted/50 border-0 focus-visible:ring-1"
           />
         </div>
       </div>
 
-      {/* Nav */}
-      <div className="px-2 flex-1 overflow-y-auto">
-        {/* My Notes section */}
-        <div className="mb-3">
-          <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">My Notes</div>
-          <div className="space-y-0.5">
-            {navItem(<Mic size={14} />, 'Voice Notes', data.notes.filter(n => n.type === 'voice').length, { type: 'voice' })}
-            {navItem(<FileText size={14} />, 'Text Notes', data.notes.filter(n => n.type === 'text').length, { type: 'text' })}
-            {navItem(<BarChart2 size={14} />, 'Analytics', data.notes.filter(n => n.type === 'analytics').length, { type: 'analytics' })}
-          </div>
-        </div>
-
-        {/* Folders section */}
-        <div className="mb-3">
-          <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>Folders</span>
-          </div>
-          <div className="space-y-0.5">
-            {data.folders.map(folder =>
-              navItem(
-                <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: folder.color }} />,
-                folder.name,
-                folderCounts[folder.id] ?? null,
-                { type: 'folder', value: folder.id }
-              )
-            )}
-            {addingFolder ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5">
-                <input
-                  autoFocus
-                  value={newFolderName}
-                  onChange={e => setNewFolderName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleAddFolder();
-                    if (e.key === 'Escape') setAddingFolder(false);
-                  }}
-                  placeholder="Folder name..."
-                  className="flex-1 bg-white/10 text-sm text-white rounded px-2 py-1 outline-none border border-indigo-500/50 min-w-0"
-                />
-                <button onClick={handleAddFolder} className="text-indigo-400 hover:text-indigo-300 text-xs font-medium">Add</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAddingFolder(true)}
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-all"
-              >
-                <Plus size={14} />
-                <span className="font-medium">Add Folder</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Manage section */}
-        <div className="mb-3">
-          <div className="px-3 py-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">Manage</div>
-          <div className="space-y-0.5">
-            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all">
-              <Zap size={14} className="text-slate-500" />
-              <span className="font-medium flex-1 text-left">Integrations</span>
-              <ChevronRight size={12} className="text-slate-600" />
-            </button>
-            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all">
-              <Users size={14} className="text-slate-500" />
-              <span className="font-medium flex-1 text-left">Teams</span>
-              <ChevronRight size={12} className="text-slate-600" />
-            </button>
-            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all">
-              <Settings size={14} className="text-slate-500" />
-              <span className="font-medium flex-1 text-left">Settings</span>
-              <ChevronRight size={12} className="text-slate-600" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Power User card */}
-      <div className="px-3 py-2">
-        <div className="bg-gradient-to-br from-indigo-900/60 to-purple-900/40 border border-indigo-500/20 rounded-xl p-3 mb-2">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Sparkles size={14} className="text-indigo-400" />
-            <span className="text-xs font-semibold text-indigo-300">You're a Power User!</span>
-          </div>
-          <p className="text-xs text-slate-400 mb-2 leading-relaxed">Unlock AI summaries, unlimited recordings & team features.</p>
-          <button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
-            Start Free Trial
+      {/* Top filters */}
+      <nav className="px-2 space-y-0.5">
+        {topFilters.map(({ id, label, Icon }) => (
+          <button
+            key={id}
+            onClick={() => onFilterChange(id)}
+            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors
+              ${filter === id
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+              }`}
+          >
+            <Icon className="h-3.5 w-3.5 shrink-0" />
+            {label}
           </button>
-        </div>
+        ))}
+      </nav>
 
-        {/* User profile */}
-        <div className="flex items-center gap-2.5 px-1 py-1">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs font-bold text-white">BH</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-slate-200 truncate">Bryce Hoover</div>
-            <div className="text-xs text-slate-500 truncate">Pro Plan</div>
-          </div>
-          <Settings size={13} className="text-slate-500 hover:text-slate-300 cursor-pointer flex-shrink-0" />
-        </div>
+      <div className="mx-3 my-2 h-px bg-border" />
+
+      {/* Folders header */}
+      <div className="px-2 mb-1 flex items-center justify-between">
+        <button
+          onClick={() => setFoldersExpanded(v => !v)}
+          className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+        >
+          <ChevronRight className={`h-3 w-3 transition-transform ${foldersExpanded ? 'rotate-90' : ''}`} />
+          Folders
+        </button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-5 w-5"
+          onClick={() => setNewFolderOpen(true)}
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
       </div>
+
+      {/* Folder list */}
+      {foldersExpanded && (
+        <div className="px-2 space-y-0.5 overflow-y-auto flex-1">
+          {data.folders.length === 0 && (
+            <p className="text-xs text-muted-foreground px-2.5 py-1.5">No folders yet</p>
+          )}
+          {data.folders.map(folder => (
+            <div
+              key={folder.id}
+              className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm cursor-pointer transition-colors
+                ${filter === folder.id
+                  ? 'bg-accent text-accent-foreground font-medium'
+                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+                }`}
+              onClick={() => onFilterChange(folder.id)}
+            >
+              <FolderOpen
+                className="h-3.5 w-3.5 shrink-0"
+                style={{ color: folder.color ?? 'currentColor' }}
+              />
+              <span className="flex-1 truncate">{folder.name}</span>
+              <span className="text-xs opacity-60">{folderNoteCount(folder.id)}</span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-36">
+                  <DropdownMenuItem onClick={e => { e.stopPropagation(); openRename(folder); }}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" />
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={e => { e.stopPropagation(); setDeleteTarget(folder); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* New Folder dialog */}
+      <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>New Folder</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder="Folder name"
+            value={newFolderName}
+            onChange={e => setNewFolderName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreateFolder()}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
+            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-xs">
+          <DialogHeader>
+            <DialogTitle>Rename Folder</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameName}
+            onChange={e => setRenameName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleRename()}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
+            <Button onClick={handleRename} disabled={!renameName.trim()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirm */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Notes in this folder won't be deleted — they'll become unorganized.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
