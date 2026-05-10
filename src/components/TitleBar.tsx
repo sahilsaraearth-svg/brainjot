@@ -1,50 +1,37 @@
 import { invoke } from '@tauri-apps/api/core';
 import { Minus, Square, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 export default function TitleBar() {
   return (
     <div
-      className="flex items-center justify-between h-9 bg-background border-b border-border select-none shrink-0"
       data-tauri-drag-region
+      className="flex items-center justify-between h-9 px-3 bg-background border-b border-border select-none shrink-0"
     >
-      {/* App name */}
       <span
-        className="pl-4 text-sm font-semibold tracking-tight text-foreground"
         data-tauri-drag-region
+        className="text-sm font-semibold text-foreground tracking-tight"
       >
         BrainJot
       </span>
-
-      {/* Window controls */}
-      <div className="flex no-drag">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-10 rounded-none hover:bg-muted"
-          onClick={() => invoke('minimize_window').catch(() => {})}
-          tabIndex={-1}
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => invoke('minimize_window')}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Minus className="h-3.5 w-3.5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-10 rounded-none hover:bg-muted"
-          onClick={() => invoke('maximize_window').catch(() => {})}
-          tabIndex={-1}
+          <Minus size={13} />
+        </button>
+        <button
+          onClick={() => invoke('maximize_window')}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
         >
-          <Square className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-10 rounded-none hover:bg-destructive hover:text-destructive-foreground"
-          onClick={() => invoke('close_window').catch(() => {})}
-          tabIndex={-1}
+          <Square size={12} />
+        </button>
+        <button
+          onClick={() => invoke('close_window')}
+          className="w-7 h-7 flex items-center justify-center rounded hover:bg-destructive hover:text-destructive-foreground text-muted-foreground transition-colors"
         >
-          <X className="h-3.5 w-3.5" />
-        </Button>
+          <X size={13} />
+        </button>
       </div>
     </div>
   );

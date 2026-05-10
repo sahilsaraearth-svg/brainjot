@@ -1,243 +1,270 @@
 import { useState } from 'react';
 import {
-  FolderOpen, Plus, Mic, FileText, BarChart2, Inbox,
-  MoreHorizontal, Pencil, Trash2, Search, ChevronRight,
+  FileText,
+  Mic,
+  BarChart2,
+  Folder,
+  FolderPlus,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import type { AppData, Folder } from '../types';
-import { createFolder, renameFolder, deleteFolder } from '../store';
+import type { Folder as FolderType } from '../types';
 
-export type FilterType = 'all' | 'voice' | 'text' | 'analytics' | string; // string for folder ids
+type FilterType = 'all' | 'voice' | 'text' | 'analytics' | string;
 
-interface Props {
-  data: AppData;
-  filter: FilterType;
-  search: string;
+interface SidebarProps {
+  folders: FolderType[];
+  activeFilter: FilterType;
+  searchQuery: string;
   onFilterChange: (f: FilterType) => void;
-  onSearchChange: (s: string) => void;
-  onDataChange: (d: AppData) => void;
+  onSearchChange: (q: string) => void;
+  onCreateFolder: (name: string) => void;
+  onRenameFolder: (id: string, name: string) => void;
+  onDeleteFolder: (id: string) => void;
 }
 
-const topFilters: { id: FilterType; label: string; Icon: React.ElementType }[] = [
-  { id: 'all', label: 'All Notes', Icon: Inbox },
-  { id: 'voice', label: 'Voice Notes', Icon: Mic },
-  { id: 'text', label: 'Text Notes', Icon: FileText },
-  { id: 'analytics', label: 'Analytics', Icon: BarChart2 },
-];
-
-export default function Sidebar({ data, filter, search, onFilterChange, onSearchChange, onDataChange }: Props) {
+export default function Sidebar({
+  folders,
+  activeFilter,
+  searchQuery,
+  onFilterChange,
+  onSearchChange,
+  onCreateFolder,
+  onRenameFolder,
+  onDeleteFolder,
+}: SidebarProps) {
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [renameOpen, setRenameOpen] = useState(false);
-  const [renameTarget, setRenameTarget] = useState<Folder | null>(null);
+  const [renameId, setRenameId] = useState<string | null>(null);
   const [renameName, setRenameName] = useState('');
-  const [deleteTarget, setDeleteTarget] = useState<Folder | null>(null);
-  const [foldersExpanded, setFoldersExpanded] = useState(true);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   function handleCreateFolder() {
     const name = newFolderName.trim();
     if (!name) return;
-    const { data: newData } = createFolder(data, name);
-    onDataChange(newData);
+    onCreateFolder(name);
     setNewFolderName('');
     setNewFolderOpen(false);
   }
 
   function handleRename() {
-    if (!renameTarget) return;
     const name = renameName.trim();
-    if (!name) return;
-    onDataChange(renameFolder(data, renameTarget.id, name));
-    setRenameOpen(false);
-    setRenameTarget(null);
+    if (!name || !renameId) return;
+    onRenameFolder(renameId, name);
+    setRenameId(null);
+    setRenameName('');
   }
 
   function handleDelete() {
-    if (!deleteTarget) return;
-    const newData = deleteFolder(data, deleteTarget.id);
-    onDataChange(newData);
-    if (filter === deleteTarget.id) onFilterChange('all');
-    setDeleteTarget(null);
+    if (!deleteId) return;
+    onDeleteFolder(deleteId);
+    setDeleteId(null);
   }
 
-  function openRename(folder: Folder) {
-    setRenameTarget(folder);
-    setRenameName(folder.name);
-    setRenameOpen(true);
-  }
-
-  const folderNoteCount = (folderId: string) =>
-    data.notes.filter(n => n.folderId === folderId).length;
+  const navItem = (
+    label: string,
+    icon: React.ReactNode,
+    filter: FilterType
+  ) => {
+    const active = activeFilter === filter;
+    return (
+      <button
+        key={filter}
+        onClick={() => onFilterChange(filter)}
+        className={`flex items-center gap-2.5 w-full px-3 py-1.5 rounded-md text-sm transition-colors ${
+          active
+            ? 'bg-accent text-accent-foreground font-medium'
+            : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+        }`}
+      >
+        {icon}
+        {label}
+      </button>
+    );
+  };
 
   return (
-    <div className="flex flex-col h-full w-[220px] bg-sidebar border-r border-border shrink-0">
+    <div className="w-[220px] flex flex-col bg-background border-r border-border shrink-0 overflow-hidden">
       {/* Search */}
-      <div className="px-3 py-2">
+      <div className="px-3 pt-3 pb-2">
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search notes…"
-            value={search}
-            onChange={e => onSearchChange(e.target.value)}
-            className="pl-8 h-8 text-sm bg-muted/50 border-0 focus-visible:ring-1"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-7 h-8 text-sm bg-muted/50 border-0 focus-visible:ring-1"
           />
         </div>
       </div>
 
-      {/* Top filters */}
-      <nav className="px-2 space-y-0.5">
-        {topFilters.map(({ id, label, Icon }) => (
-          <button
-            key={id}
-            onClick={() => onFilterChange(id)}
-            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors
-              ${filter === id
-                ? 'bg-accent text-accent-foreground font-medium'
-                : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              }`}
-          >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="mx-3 my-2 h-px bg-border" />
+      {/* Filters */}
+      <div className="px-2 py-1 space-y-0.5">
+        {navItem('All Notes', <FileText size={14} />, 'all')}
+        {navItem('Voice', <Mic size={14} />, 'voice')}
+        {navItem('Text', <FileText size={14} />, 'text')}
+        {navItem('Analytics', <BarChart2 size={14} />, 'analytics')}
+      </div>
 
       {/* Folders header */}
-      <div className="px-2 mb-1 flex items-center justify-between">
-        <button
-          onClick={() => setFoldersExpanded(v => !v)}
-          className="flex items-center gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-        >
-          <ChevronRight className={`h-3 w-3 transition-transform ${foldersExpanded ? 'rotate-90' : ''}`} />
+      <div className="flex items-center justify-between px-3 pt-4 pb-1">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Folders
-        </button>
+        </span>
         <Button
           variant="ghost"
           size="icon"
-          className="h-5 w-5"
-          onClick={() => setNewFolderOpen(true)}
+          className="h-5 w-5 text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            setNewFolderName('');
+            setNewFolderOpen(true);
+          }}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <FolderPlus size={13} />
         </Button>
       </div>
 
       {/* Folder list */}
-      {foldersExpanded && (
-        <div className="px-2 space-y-0.5 overflow-y-auto flex-1">
-          {data.folders.length === 0 && (
-            <p className="text-xs text-muted-foreground px-2.5 py-1.5">No folders yet</p>
-          )}
-          {data.folders.map(folder => (
+      <div className="flex-1 overflow-y-auto px-2 space-y-0.5 pb-4">
+        {folders.length === 0 && (
+          <p className="text-xs text-muted-foreground px-3 py-2">No folders yet</p>
+        )}
+        {folders.map((folder) => {
+          const active = activeFilter === folder.id;
+          return (
             <div
               key={folder.id}
-              className={`group flex items-center gap-2 px-2.5 py-1.5 rounded-md text-sm cursor-pointer transition-colors
-                ${filter === folder.id
+              className={`group flex items-center gap-2 w-full px-3 py-1.5 rounded-md text-sm cursor-pointer transition-colors ${
+                active
                   ? 'bg-accent text-accent-foreground font-medium'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-                }`}
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
               onClick={() => onFilterChange(folder.id)}
             >
-              <FolderOpen
-                className="h-3.5 w-3.5 shrink-0"
-                style={{ color: folder.color ?? 'currentColor' }}
-              />
+              <Folder size={14} className="shrink-0" />
               <span className="flex-1 truncate">{folder.name}</span>
-              <span className="text-xs opacity-60">{folderNoteCount(folder.id)}</span>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 shrink-0"
+                <DropdownMenuTrigger asChild>
+                  <button
+                    className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-muted-foreground/20 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
                   >
-                    <MoreHorizontal className="h-3.5 w-3.5" />
-                  </Button>
+                    <MoreHorizontal size={12} />
+                  </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-36">
-                  <DropdownMenuItem onClick={e => { e.stopPropagation(); openRename(folder); }}>
-                    <Pencil className="h-3.5 w-3.5 mr-2" />
-                    Rename
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRenameId(folder.id);
+                      setRenameName(folder.name);
+                    }}
+                  >
+                    <Pencil size={13} className="mr-2" /> Rename
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    className="text-destructive"
-                    onClick={e => { e.stopPropagation(); setDeleteTarget(folder); }}
+                    className="text-destructive focus:text-destructive"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteId(folder.id);
+                    }}
                   >
-                    <Trash2 className="h-3.5 w-3.5 mr-2" />
-                    Delete
+                    <Trash2 size={13} className="mr-2" /> Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-          ))}
-        </div>
-      )}
+          );
+        })}
+      </div>
 
-      {/* New Folder dialog */}
+      {/* Create folder dialog */}
       <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
-        <DialogContent className="sm:max-w-xs">
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>New Folder</DialogTitle>
           </DialogHeader>
           <Input
             placeholder="Folder name"
             value={newFolderName}
-            onChange={e => setNewFolderName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleCreateFolder()}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreateFolder()}
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
-            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</Button>
+            <Button variant="ghost" onClick={() => setNewFolderOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>
+              Create
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Rename dialog */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="sm:max-w-xs">
+      <Dialog open={!!renameId} onOpenChange={(o) => !o && setRenameId(null)}>
+        <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Rename Folder</DialogTitle>
           </DialogHeader>
           <Input
+            placeholder="Folder name"
             value={renameName}
-            onChange={e => setRenameName(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleRename()}
+            onChange={(e) => setRenameName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleRename()}
             autoFocus
           />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameOpen(false)}>Cancel</Button>
-            <Button onClick={handleRename} disabled={!renameName.trim()}>Save</Button>
+            <Button variant="ghost" onClick={() => setRenameId(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRename} disabled={!renameName.trim()}>
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete confirm */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{deleteTarget?.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete folder?</AlertDialogTitle>
             <AlertDialogDescription>
-              Notes in this folder won't be deleted — they'll become unorganized.
+              Notes in this folder won't be deleted, just unassigned.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
