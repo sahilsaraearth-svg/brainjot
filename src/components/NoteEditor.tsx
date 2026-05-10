@@ -525,7 +525,7 @@ export default function NoteEditor({ note, onUpdate }: NoteEditorProps) {
       <div className="flex-1 flex flex-col items-center justify-center bg-background text-muted-foreground gap-3">
         <FileText size={36} className="opacity-20" />
         <p className="text-sm">Select a note or create one</p>
-        <p className="text-xs text-muted-foreground/50">Right-click note title for more options</p>
+        <p className="text-xs text-muted-foreground/50">Right-click anywhere on a note for more options</p>
       </div>
     );
   }
@@ -542,144 +542,288 @@ export default function NoteEditor({ note, onUpdate }: NoteEditorProps) {
 
   const wordCount = note.content.trim().split(/\s+/).filter(Boolean).length;
 
-  return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden">
-      {/* Title bar with context menu */}
+  // ── Title bar (shared across all types) ──────────────────────────────────
+  const titleBar = (
+    <div className="flex items-center gap-2 px-5 h-11 border-b border-border shrink-0 cursor-default">
+      {typeIcon(note.type)}
+      {editingTitle ? (
+        <input
+          value={titleDraft}
+          onChange={e => setTitleDraft(e.target.value)}
+          onBlur={commitTitle}
+          onKeyDown={e => { if (e.key === 'Enter') commitTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
+          className="flex-1 bg-transparent text-base font-semibold text-foreground outline-none border-b border-border"
+          autoFocus
+        />
+      ) : (
+        <h1
+          className="flex-1 text-base font-semibold text-foreground cursor-text truncate"
+          onDoubleClick={() => { setTitleDraft(note.title); setEditingTitle(true); }}
+        >
+          {note.title || 'Untitled'}
+        </h1>
+      )}
+
+      {/* Plus menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground">
+            <Plus size={14} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={() => patch({ showAiSummary: true })}>
+            <Sparkles size={13} className="mr-2 text-violet-500" /> Add AI Summary
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => patch({ showSections: true })}>
+            <Plus size={13} className="mr-2 text-blue-500" /> Add Sections
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Badge variant="outline" className="text-[10px] shrink-0">
+        {new Date(note.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+      </Badge>
+    </div>
+  );
+
+  // ── Context menu content (shared) ────────────────────────────────────────
+  const contextMenuContent = (
+    <ContextMenuContent className="w-52">
+      <ContextMenuItem onClick={() => { setTitleDraft(note.title); setEditingTitle(true); }}>
+        <Pencil size={13} className="mr-2" /> Rename Note
+      </ContextMenuItem>
+      <ContextMenuSeparator />
+      <ContextMenuItem onClick={() => patch({ showAiSummary: !note.showAiSummary })}>
+        <Sparkles size={13} className="mr-2 text-violet-500" />
+        {note.showAiSummary ? 'Hide AI Summary' : 'Show AI Summary'}
+      </ContextMenuItem>
+      <ContextMenuItem onClick={() => patch({ showSections: !note.showSections })}>
+        <Plus size={13} className="mr-2 text-blue-500" />
+        {note.showSections ? 'Hide Sections' : 'Show Sections'}
+      </ContextMenuItem>
+    </ContextMenuContent>
+  );
+
+  // ── TEXT note: full-height textarea, no box ───────────────────────────────
+  if (note.type === 'text') {
+    return (
       <ContextMenu>
         <ContextMenuTrigger asChild>
-          <div className="flex items-center gap-2 px-5 h-11 border-b border-border shrink-0 cursor-default">
-            {typeIcon(note.type)}
-            {editingTitle ? (
-              <input
-                value={titleDraft}
-                onChange={e => setTitleDraft(e.target.value)}
-                onBlur={commitTitle}
-                onKeyDown={e => { if (e.key === 'Enter') commitTitle(); if (e.key === 'Escape') setEditingTitle(false); }}
-                className="flex-1 bg-transparent text-base font-semibold text-foreground outline-none border-b border-border"
-                autoFocus
-              />
-            ) : (
-              <h1
-                className="flex-1 text-base font-semibold text-foreground cursor-text truncate"
-                onDoubleClick={() => { setTitleDraft(note.title); setEditingTitle(true); }}
-              >
-                {note.title || 'Untitled'}
-              </h1>
+          <div className="flex-1 flex flex-col bg-background overflow-hidden">
+            {titleBar}
+
+            {/* Writing area — fills all remaining height */}
+            <textarea
+              placeholder="Start writing…"
+              value={note.content}
+              onChange={e => patch({ content: e.target.value })}
+              className="flex-1 w-full resize-none border-0 bg-transparent p-5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0"
+              style={{ fontFamily: 'inherit' }}
+            />
+
+            {/* AI Summary + Sections as overlay panel at bottom when enabled */}
+            {(note.showAiSummary || note.showSections) && (
+              <div className="border-t border-border shrink-0">
+                <ScrollArea className="max-h-72">
+                  <div className="px-5 py-4 space-y-5">
+                    {note.showAiSummary && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <Sparkles size={13} className="text-violet-500" />
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</span>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-muted-foreground hover:text-destructive"
+                            onClick={() => patch({ showAiSummary: false })}>
+                            <X size={11} />
+                          </Button>
+                        </div>
+                        {editingSummary ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={summaryDraft} onChange={e => setSummaryDraft(e.target.value)}
+                              placeholder="Write your summary…"
+                              className="min-h-[80px] resize-none text-sm bg-muted/40 border border-border rounded-md"
+                              autoFocus
+                            />
+                            <div className="flex gap-2">
+                              <Button size="sm" className="h-7 text-xs" onClick={() => { patch({ aiSummary: summaryDraft }); setEditingSummary(false); }}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingSummary(false)}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-muted-foreground italic cursor-text hover:text-foreground/70 transition-colors min-h-[2rem] p-2 rounded hover:bg-muted/30"
+                            onClick={() => { setSummaryDraft(note.aiSummary || ''); setEditingSummary(true); }}>
+                            {note.aiSummary || 'Click to write a summary…'}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {note.showAiSummary && note.showSections && <Separator />}
+
+                    {note.showSections && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">Sections</span>
+                          <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                            onClick={() => patch({ showSections: false })}>
+                            <X size={11} />
+                          </Button>
+                        </div>
+                        <SectionsPanel note={note} onUpdate={onUpdate} />
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
             )}
 
-            {/* Plus menu — inline with title */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground">
-                  <Plus size={14} />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => patch({ showAiSummary: true })}>
-                  <Sparkles size={13} className="mr-2 text-violet-500" /> Add AI Summary
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => patch({ showSections: true })}>
-                  <Plus size={13} className="mr-2 text-blue-500" /> Add Sections
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Badge variant="outline" className="text-[10px] shrink-0">
-              {new Date(note.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-            </Badge>
+            {/* Word count bar */}
+            <div className="px-5 py-1 border-t border-border/50 shrink-0">
+              <span className="text-[10px] text-muted-foreground/40">{wordCount} word{wordCount !== 1 ? 's' : ''}</span>
+            </div>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent className="w-52">
-          <ContextMenuItem onDoubleClick={() => { setTitleDraft(note.title); setEditingTitle(true); }}
-            onClick={() => { setTitleDraft(note.title); setEditingTitle(true); }}>
-            <Pencil size={13} className="mr-2" /> Rename Note
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem onClick={() => patch({ showAiSummary: !note.showAiSummary })}>
-            <Sparkles size={13} className="mr-2 text-violet-500" />
-            {note.showAiSummary ? 'Hide AI Summary' : 'Show AI Summary'}
-          </ContextMenuItem>
-          <ContextMenuItem onClick={() => patch({ showSections: !note.showSections })}>
-            <Plus size={13} className="mr-2 text-blue-500" />
-            {note.showSections ? 'Hide Sections' : 'Show Sections'}
-          </ContextMenuItem>
-        </ContextMenuContent>
+        {contextMenuContent}
       </ContextMenu>
+    );
+  }
 
-      <ScrollArea className="flex-1">
-        <div className="px-5 py-4 space-y-5 max-w-3xl">
+  // ── VOICE note: recorder only, no textarea ────────────────────────────────
+  if (note.type === 'voice') {
+    return (
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div className="flex-1 flex flex-col bg-background overflow-hidden">
+            {titleBar}
+            <ScrollArea className="flex-1">
+              <div className="px-5 py-4 max-w-3xl space-y-5">
+                <VoicePanel note={note} onUpdate={onUpdate} />
 
-          {/* Content — text/voice/analytics */}
-          {note.type === 'text' && (
-            <div>
-              <Textarea
-                placeholder="Start writing…"
-                value={note.content}
-                onChange={e => patch({ content: e.target.value })}
-                className="min-h-[160px] resize-none border-0 bg-transparent px-0 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 shadow-none"
-              />
-              <p className="text-[10px] text-muted-foreground/40 mt-1">{wordCount} word{wordCount !== 1 ? 's' : ''}</p>
-            </div>
-          )}
-
-          {note.type === 'voice' && <VoicePanel note={note} onUpdate={onUpdate} />}
-          {note.type === 'analytics' && <AnalyticsPanel note={note} onUpdate={onUpdate} />}
-
-          {/* AI Summary — only if enabled */}
-          {note.showAiSummary && (
-            <>
-              <Separator />
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={13} className="text-violet-500" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-muted-foreground hover:text-destructive"
-                    onClick={() => patch({ showAiSummary: false })}>
-                    <X size={11} />
-                  </Button>
-                </div>
-                {editingSummary ? (
-                  <div className="space-y-2">
-                    <Textarea
-                      value={summaryDraft} onChange={e => setSummaryDraft(e.target.value)}
-                      placeholder="Write your summary…"
-                      className="min-h-[80px] resize-none text-sm bg-muted/40 border border-border rounded-md"
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="h-7 text-xs" onClick={() => { patch({ aiSummary: summaryDraft }); setEditingSummary(false); }}>Save</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingSummary(false)}>Cancel</Button>
+                {note.showAiSummary && (
+                  <>
+                    <Separator />
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles size={13} className="text-violet-500" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-muted-foreground hover:text-destructive"
+                          onClick={() => patch({ showAiSummary: false })}>
+                          <X size={11} />
+                        </Button>
+                      </div>
+                      {editingSummary ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={summaryDraft} onChange={e => setSummaryDraft(e.target.value)}
+                            placeholder="Write your summary…"
+                            className="min-h-[80px] resize-none text-sm bg-muted/40 border border-border rounded-md"
+                            autoFocus
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" className="h-7 text-xs" onClick={() => { patch({ aiSummary: summaryDraft }); setEditingSummary(false); }}>Save</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingSummary(false)}>Cancel</Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic cursor-text hover:text-foreground/70 transition-colors min-h-[2rem] p-2 rounded hover:bg-muted/30"
+                          onClick={() => { setSummaryDraft(note.aiSummary || ''); setEditingSummary(true); }}>
+                          {note.aiSummary || 'Click to write a summary…'}
+                        </p>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic cursor-text hover:text-foreground/70 transition-colors min-h-[2rem] p-2 rounded hover:bg-muted/30"
-                    onClick={() => { setSummaryDraft(note.aiSummary || ''); setEditingSummary(true); }}>
-                    {note.aiSummary || 'Click to write a summary…'}
-                  </p>
+                  </>
+                )}
+
+                {note.showSections && (
+                  <>
+                    <Separator />
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">Sections</span>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                          onClick={() => patch({ showSections: false })}>
+                          <X size={11} />
+                        </Button>
+                      </div>
+                      <SectionsPanel note={note} onUpdate={onUpdate} />
+                    </div>
+                  </>
                 )}
               </div>
-            </>
-          )}
+            </ScrollArea>
+          </div>
+        </ContextMenuTrigger>
+        {contextMenuContent}
+      </ContextMenu>
+    );
+  }
 
-          {/* Sections — only if enabled */}
-          {note.showSections && (
-            <>
-              <Separator />
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">Sections</span>
-                  <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                    onClick={() => patch({ showSections: false })}>
-                    <X size={11} />
-                  </Button>
-                </div>
-                <SectionsPanel note={note} onUpdate={onUpdate} />
-              </div>
-            </>
-          )}
+  // ── ANALYTICS note: charts only, no textarea ──────────────────────────────
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div className="flex-1 flex flex-col bg-background overflow-hidden">
+          {titleBar}
+          <ScrollArea className="flex-1">
+            <div className="px-5 py-4 max-w-3xl space-y-5">
+              <AnalyticsPanel note={note} onUpdate={onUpdate} />
 
+              {note.showAiSummary && (
+                <>
+                  <Separator />
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Sparkles size={13} className="text-violet-500" />
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">AI Summary</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-muted-foreground hover:text-destructive"
+                        onClick={() => patch({ showAiSummary: false })}>
+                        <X size={11} />
+                      </Button>
+                    </div>
+                    {editingSummary ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={summaryDraft} onChange={e => setSummaryDraft(e.target.value)}
+                          placeholder="Write your summary…"
+                          className="min-h-[80px] resize-none text-sm bg-muted/40 border border-border rounded-md"
+                          autoFocus
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" className="h-7 text-xs" onClick={() => { patch({ aiSummary: summaryDraft }); setEditingSummary(false); }}>Save</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingSummary(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground italic cursor-text hover:text-foreground/70 transition-colors min-h-[2rem] p-2 rounded hover:bg-muted/30"
+                        onClick={() => { setSummaryDraft(note.aiSummary || ''); setEditingSummary(true); }}>
+                        {note.aiSummary || 'Click to write a summary…'}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {note.showSections && (
+                <>
+                  <Separator />
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex-1">Sections</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                        onClick={() => patch({ showSections: false })}>
+                        <X size={11} />
+                      </Button>
+                    </div>
+                    <SectionsPanel note={note} onUpdate={onUpdate} />
+                  </div>
+                </>
+              )}
+            </div>
+          </ScrollArea>
         </div>
-      </ScrollArea>
-    </div>
+      </ContextMenuTrigger>
+      {contextMenuContent}
+    </ContextMenu>
   );
 }
