@@ -1,4 +1,4 @@
-import { Sun, Moon, Monitor, Type, Minimize2, Eye, Save } from 'lucide-react';
+import { Sun, Moon, Monitor, Type, Minimize2, Eye, Save, Network } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import type { AppSettings, ThemeMode } from '../types';
 
@@ -117,6 +117,87 @@ export default function SettingsPanel({ settings, onUpdate }: SettingsPanelProps
 
           <Row label="Auto Save" description="Automatically save changes as you type">
             <Toggle value={settings.autoSave} onChange={(v) => patch({ autoSave: v })} />
+          </Row>
+        </div>
+
+        {/* Brain */}
+        <div className="mt-6 mb-1">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Second Brain</p>
+
+          <Row label="Plugin Mode" description="Optimise suggestions for your use case">
+            <div className="flex flex-wrap gap-1 justify-end">
+              {(['notes','research','coding','study','journal','startup'] as const).map(m => (
+                <button
+                  key={m}
+                  onClick={() => patch({ pluginMode: m })}
+                  className={`px-2 py-1 rounded text-xs border capitalize transition-colors ${
+                    (settings.pluginMode ?? 'notes') === m
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                  }`}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </Row>
+
+          <Separator />
+
+          <Row label="Graph Layout" description="Memory graph arrangement style">
+            <div className="flex gap-1">
+              {(['force','radial','cluster'] as const).map(l => (
+                <button
+                  key={l}
+                  onClick={() => patch({ graphLayout: l })}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs border capitalize transition-colors ${
+                    (settings.graphLayout ?? 'force') === l
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                  }`}
+                >
+                  <Network size={10} />
+                  {l}
+                </button>
+              ))}
+            </div>
+          </Row>
+
+          <Separator />
+
+          <Row label="Ambient Sound" description="Background audio during Focus Mode">
+            <div className="flex flex-wrap gap-1 justify-end">
+              {(['none','rain','forest','cafe','space'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => patch({ ambientSound: s })}
+                  className={`px-2 py-1 rounded text-xs border capitalize transition-colors ${
+                    (settings.ambientSound ?? 'none') === s
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border text-muted-foreground hover:border-foreground hover:text-foreground'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </Row>
+
+          <Separator />
+
+          <Row label="Thought Stream Interval" description="Seconds between thought prompts (10–120)">
+            <input
+              type="range"
+              min={10}
+              max={120}
+              step={5}
+              value={settings.streamInterval ?? 30}
+              onChange={e => patch({ streamInterval: Number(e.target.value) })}
+              className="w-24 accent-primary"
+            />
+            <span className="ml-2 text-xs text-muted-foreground w-8 text-right inline-block">
+              {settings.streamInterval ?? 30}s
+            </span>
           </Row>
         </div>
 

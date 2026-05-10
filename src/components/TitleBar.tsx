@@ -1,7 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import { Minus, Square, X } from 'lucide-react';
+import { Minus, Square, X, Sparkles } from 'lucide-react';
 
-export default function TitleBar() {
+interface TitleBarProps {
+  onToggleStream?: () => void;
+}
+
+export default function TitleBar({ onToggleStream }: TitleBarProps) {
   return (
     <div
       data-tauri-drag-region
@@ -13,7 +17,18 @@ export default function TitleBar() {
       >
         BrainJot
       </span>
+
       <div className="flex items-center gap-0.5">
+        {onToggleStream && (
+          <button
+            onClick={onToggleStream}
+            title="Thought Stream"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-violet-400 transition-colors"
+          >
+            <Sparkles size={13} />
+          </button>
+        )}
+
         <button
           onClick={() => invoke('minimize_window')}
           className="w-7 h-7 flex items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
