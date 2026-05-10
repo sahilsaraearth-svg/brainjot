@@ -1,0 +1,89 @@
+name: Release BrainJot
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend deps
+        run: bun install
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'BrainJot ${{ github.ref_name }}'
+          releaseBody: |
+            ## BrainJot ${{ github.ref_name }}
+            Smart note-taking app with AI summaries, voice notes, and team collaboration.
+
+            ### Download
+            - **Windows**: Download the `.msi` or `_x64-setup.exe` installer below
+          releaseDraft: false
+          prerelease: false
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install frontend deps
+        run: bun install
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'BrainJot ${{ github.ref_name }}'
+          releaseBody: |
+            ## BrainJot ${{ github.ref_name }}
+            Smart note-taking app — Linux build.
+          releaseDraft: false
+          prerelease: false
